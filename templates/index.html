@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Company Runway Calculator</title>
+    <style>
+        /* ── Reset & Base ───────────────────────────────────── */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* ── Header ─────────────────────────────────────────── */
+        header {
+            background: linear-gradient(135deg, #1a2744 0%, #2c3e6b 100%);
+            color: #fff;
+            text-align: center;
+            padding: 2.5rem 1rem 2rem;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            margin-bottom: 0.4rem;
+        }
+
+        header p {
+            font-size: 1.05rem;
+            color: #b0bdd4;
+            font-weight: 400;
+        }
+
+        /* ── Layout ─────────────────────────────────────────── */
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 2rem 1rem 3rem;
+        }
+
+        /* ── Cards ──────────────────────────────────────────── */
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card h2 {
+            font-size: 1.25rem;
+            color: #1a2744;
+            margin-bottom: 1.25rem;
+            padding-bottom: 0.6rem;
+            border-bottom: 2px solid #e8ecf1;
+        }
+
+        /* ── Error Banner ───────────────────────────────────── */
+        .error-banner {
+            background: #fef2f2;
+            border: 1px solid #fca5a5;
+            border-left: 4px solid #ef4444;
+            color: #991b1b;
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+
+        .error-banner::before {
+            content: "⚠ ";
+        }
+
+        /* ── Form ───────────────────────────────────────────── */
+        .form-sections {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 700px) {
+            .form-sections {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .form-section-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #6b7280;
+            margin-bottom: 1rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.1rem;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 0.3rem;
+        }
+
+        .form-group .hint {
+            display: block;
+            font-size: 0.75rem;
+            color: #9ca3af;
+            margin-bottom: 0.25rem;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 0.6rem 0.75rem;
+            font-size: 0.95rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: #f9fafb;
+            color: #1f2937;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+            background: #fff;
+        }
+
+        .form-group input[type="number"] {
+            font-family: "SF Mono", "Cascadia Code", "Fira Mono", "Consolas", monospace;
+        }
+
+        .currency-prefix {
+            position: relative;
+        }
+
+        .currency-prefix::before {
+            content: "$";
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            font-family: "SF Mono", "Cascadia Code", "Fira Mono", "Consolas", monospace;
+            font-size: 0.95rem;
+            pointer-events: none;
+        }
+
+        .currency-prefix input {
+            padding-left: 1.5rem;
+        }
+
+        .btn-calculate {
+            display: block;
+            width: 100%;
+            padding: 0.85rem 1.5rem;
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #fff;
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 0.5rem;
+            transition: transform 0.1s, box-shadow 0.2s;
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-calculate:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+        }
+
+        .btn-calculate:active {
+            transform: translateY(0);
+        }
+
+        /* ── Results ────────────────────────────────────────── */
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .result-item {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 1rem 1.15rem;
+        }
+
+        .result-item .result-label {
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #6b7280;
+            margin-bottom: 0.3rem;
+        }
+
+        .result-item .result-value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            font-family: "SF Mono", "Cascadia Code", "Fira Mono", "Consolas", monospace;
+            color: #1a2744;
+        }
+
+        .result-item .result-sub {
+            font-size: 0.8rem;
+            color: #9ca3af;
+            margin-top: 0.15rem;
+        }
+
+        /* Color-coded result items */
+        .result-item.green {
+            border-left: 4px solid #22c55e;
+        }
+
+        .result-item.green .result-value {
+            color: #15803d;
+        }
+
+        .result-item.yellow {
+            border-left: 4px solid #eab308;
+        }
+
+        .result-item.yellow .result-value {
+            color: #a16207;
+        }
+
+        .result-item.red {
+            border-left: 4px solid #ef4444;
+        }
+
+        .result-item.red .result-value {
+            color: #dc2626;
+        }
+
+        .result-item.neutral {
+            border-left: 4px solid #3b82f6;
+        }
+
+        /* ── Runway Gauge ───────────────────────────────────── */
+        .runway-gauge {
+            margin-top: 0.5rem;
+        }
+
+        .runway-gauge .gauge-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 0.5rem;
+        }
+
+        .runway-gauge .gauge-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .runway-gauge .gauge-value {
+            font-size: 0.85rem;
+            font-weight: 600;
+            font-family: "SF Mono", "Cascadia Code", "Fira Mono", "Consolas", monospace;
+        }
+
+        .gauge-track {
+            width: 100%;
+            height: 28px;
+            background: #e5e7eb;
+            border-radius: 14px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .gauge-fill {
+            height: 100%;
+            border-radius: 14px;
+            transition: width 0.6s ease;
+            min-width: 8px;
+            position: relative;
+        }
+
+        .gauge-fill.red    { background: linear-gradient(90deg, #ef4444, #f87171); }
+        .gauge-fill.yellow { background: linear-gradient(90deg, #eab308, #facc15); }
+        .gauge-fill.green  { background: linear-gradient(90deg, #22c55e, #4ade80); }
+
+        .gauge-markers {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.3rem 0.2rem 0;
+            font-size: 0.7rem;
+            color: #9ca3af;
+        }
+
+        .gauge-markers span.danger  { color: #ef4444; }
+        .gauge-markers span.caution { color: #eab308; }
+        .gauge-markers span.safe    { color: #22c55e; }
+
+        /* ── Footer ─────────────────────────────────────────── */
+        footer {
+            text-align: center;
+            padding: 1.5rem 1rem;
+            font-size: 0.8rem;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ── Header ──────────────────────────────────────────── -->
+    <header>
+        <h1>Company Runway Calculator</h1>
+        <p>Calculate how long your company can operate before running out of cash</p>
+    </header>
+
+    <div class="container">
+
+        <!-- ── Error Banner ────────────────────────────────── -->
+        {% if error %}
+        <div class="error-banner">{{ error }}</div>
+        {% endif %}
+
+        <!-- ── Input Form ──────────────────────────────────── -->
+        <form method="POST" action="/">
+            <div class="card">
+                <h2>Enter Financial Data</h2>
+
+                <div class="form-sections">
+
+                    <!-- Left column: Balance Sheet Data -->
+                    <div class="form-section">
+                        <div class="form-section-title">Balance Sheet Data</div>
+
+                        <div class="form-group">
+                            <label for="balance_sheet_date">Balance Sheet Date</label>
+                            <input type="date"
+                                   id="balance_sheet_date"
+                                   name="balance_sheet_date"
+                                   value="{{ form_data.balance_sheet_date if form_data else '' }}"
+                                   required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="cash_and_equivalents">Cash &amp; Cash Equivalents</label>
+                            <span class="hint">USD — total liquid cash on hand</span>
+                            <div class="currency-prefix">
+                                <input type="number"
+                                       step="0.01"
+                                       id="cash_and_equivalents"
+                                       name="cash_and_equivalents"
+                                       value="{{ form_data.cash_and_equivalents if form_data else '' }}"
+                                       placeholder="0.00"
+                                       required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="short_term_investments">Short-term Investments</label>
+                            <span class="hint">USD — marketable securities, CDs, etc.</span>
+                            <div class="currency-prefix">
+                                <input type="number"
+                                       step="0.01"
+                                       id="short_term_investments"
+                                       name="short_term_investments"
+                                       value="{{ form_data.short_term_investments if form_data else '' }}"
+                                       placeholder="0.00"
+                                       required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="accounts_receivable">Accounts Receivable</label>
+                            <span class="hint">USD — outstanding customer payments</span>
+                            <div class="currency-prefix">
+                                <input type="number"
+                                       step="0.01"
+                                       id="accounts_receivable"
+                                       name="accounts_receivable"
+                                       value="{{ form_data.accounts_receivable if form_data else '' }}"
+                                       placeholder="Optional">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right column: Monthly Cash Flow -->
+                    <div class="form-section">
+                        <div class="form-section-title">Monthly Cash Flow</div>
+
+                        <div class="form-group">
+                            <label for="monthly_revenue">Average Monthly Revenue</label>
+                            <span class="hint">USD — recurring monthly income</span>
+                            <div class="currency-prefix">
+                                <input type="number"
+                                       step="0.01"
+                                       id="monthly_revenue"
+                                       name="monthly_revenue"
+                                       value="{{ form_data.monthly_revenue if form_data else '' }}"
+                                       placeholder="0.00"
+                                       required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="monthly_cogs">Average Monthly COGS</label>
+                            <span class="hint">USD — cost of goods sold</span>
+                            <div class="currency-prefix">
+                                <input type="number"
+                                       step="0.01"
+                                       id="monthly_cogs"
+                                       name="monthly_cogs"
+                                       value="{{ form_data.monthly_cogs if form_data else '' }}"
+                                       placeholder="0.00"
+                                       required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="monthly_operating_expenses">Average Monthly Operating Expenses</label>
+                            <span class="hint">USD — salaries, rent, SaaS, etc.</span>
+                            <div class="currency-prefix">
+                                <input type="number"
+                                       step="0.01"
+                                       id="monthly_operating_expenses"
+                                       name="monthly_operating_expenses"
+                                       value="{{ form_data.monthly_operating_expenses if form_data else '' }}"
+                                       placeholder="0.00"
+                                       required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="monthly_other_expenses">Other Monthly Cash Outflows</label>
+                            <span class="hint">USD — debt payments, one-offs, etc.</span>
+                            <div class="currency-prefix">
+                                <input type="number"
+                                       step="0.01"
+                                       id="monthly_other_expenses"
+                                       name="monthly_other_expenses"
+                                       value="{{ form_data.monthly_other_expenses if form_data else '' }}"
+                                       placeholder="Optional, default 0">
+                            </div>
+                        </div>
+                    </div>
+
+                </div><!-- /.form-sections -->
+
+                <button type="submit" class="btn-calculate">Calculate Runway</button>
+            </div>
+        </form>
+
+        <!-- ── Results Section ─────────────────────────────── -->
+        {% if results %}
+        <div class="card" id="results">
+            <h2>Runway Analysis</h2>
+
+            <div class="results-grid">
+
+                <!-- Balance Sheet Date -->
+                <div class="result-item neutral">
+                    <div class="result-label">Balance Sheet Date</div>
+                    <div class="result-value" style="font-size:1.05rem;">{{ form_data.balance_sheet_date }}</div>
+                </div>
+
+                <!-- Total Liquid Assets -->
+                <div class="result-item neutral">
+                    <div class="result-label">Total Liquid Assets</div>
+                    <div class="result-value">${{ "{:,.2f}".format(results.total_liquid_assets) }}</div>
+                </div>
+
+                <!-- Gross Monthly Burn Rate -->
+                <div class="result-item neutral">
+                    <div class="result-label">Gross Monthly Burn Rate</div>
+                    <div class="result-value">${{ "{:,.2f}".format(results.gross_monthly_burn) }}</div>
+                    <div class="result-sub">Total cash out per month</div>
+                </div>
+
+                <!-- Net Monthly Burn Rate -->
+                {% if results.is_cash_flow_positive %}
+                <div class="result-item green">
+                    <div class="result-label">Net Monthly Burn Rate</div>
+                    <div class="result-value">Cash Flow Positive</div>
+                    <div class="result-sub">Revenue exceeds expenses</div>
+                </div>
+                {% else %}
+                <div class="result-item {% if results.net_monthly_burn > 0 %}red{% else %}green{% endif %}">
+                    <div class="result-label">Net Monthly Burn Rate</div>
+                    <div class="result-value">${{ "{:,.2f}".format(results.net_monthly_burn) }}</div>
+                    <div class="result-sub">After revenue offset</div>
+                </div>
+                {% endif %}
+
+                <!-- Gross Runway -->
+                {% if results.gross_runway_months >= 12 %}
+                    {% set gross_color = "green" %}
+                {% elif results.gross_runway_months >= 6 %}
+                    {% set gross_color = "yellow" %}
+                {% else %}
+                    {% set gross_color = "red" %}
+                {% endif %}
+                <div class="result-item {{ gross_color }}">
+                    <div class="result-label">Gross Runway</div>
+                    <div class="result-value">{{ "%.1f"|format(results.gross_runway_months) }} months</div>
+                    <div class="result-sub">Ignoring revenue</div>
+                </div>
+
+                <!-- Net Runway -->
+                {% if results.is_cash_flow_positive %}
+                <div class="result-item green">
+                    <div class="result-label">Net Runway</div>
+                    <div class="result-value">Unlimited</div>
+                    <div class="result-sub">Self-sustaining</div>
+                </div>
+                {% else %}
+                    {% if results.net_runway_months >= 12 %}
+                        {% set net_color = "green" %}
+                    {% elif results.net_runway_months >= 6 %}
+                        {% set net_color = "yellow" %}
+                    {% else %}
+                        {% set net_color = "red" %}
+                    {% endif %}
+                <div class="result-item {{ net_color }}">
+                    <div class="result-label">Net Runway</div>
+                    <div class="result-value">{{ "%.1f"|format(results.net_runway_months) }} months</div>
+                    <div class="result-sub">Accounting for revenue</div>
+                </div>
+                {% endif %}
+
+                <!-- Projected Cash-Out Date -->
+                {% if results.is_cash_flow_positive %}
+                <div class="result-item green">
+                    <div class="result-label">Projected Cash-Out Date</div>
+                    <div class="result-value" style="font-size:1.05rem;">N/A</div>
+                    <div class="result-sub">Not applicable</div>
+                </div>
+                {% else %}
+                    {% if results.net_runway_months < 6 %}
+                        {% set date_color = "red" %}
+                    {% elif results.net_runway_months < 12 %}
+                        {% set date_color = "yellow" %}
+                    {% else %}
+                        {% set date_color = "green" %}
+                    {% endif %}
+                <div class="result-item {{ date_color }}">
+                    <div class="result-label">Projected Cash-Out Date</div>
+                    <div class="result-value" style="font-size:1.05rem;">{{ results.runway_end_date }}</div>
+                </div>
+                {% endif %}
+
+            </div><!-- /.results-grid -->
+
+            <!-- ── Runway Gauge Bar ────────────────────────── -->
+            <div class="runway-gauge">
+                <div class="gauge-header">
+                    <span class="gauge-title">Net Runway Visualization</span>
+                    {% if results.is_cash_flow_positive %}
+                    <span class="gauge-value" style="color:#22c55e;">∞ Sustainable</span>
+                    {% else %}
+                    <span class="gauge-value"
+                          style="color:{% if results.net_runway_months < 6 %}#ef4444{% elif results.net_runway_months < 12 %}#eab308{% else %}#22c55e{% endif %};">
+                        {{ "%.1f"|format(results.net_runway_months) }} months
+                    </span>
+                    {% endif %}
+                </div>
+
+                {% if results.is_cash_flow_positive %}
+                    {% set gauge_pct = 100 %}
+                    {% set gauge_color = "green" %}
+                {% else %}
+                    {# Cap gauge at 24 months = 100% #}
+                    {% set gauge_pct = [(results.net_runway_months / 24 * 100), 100] | min %}
+                    {% if results.net_runway_months < 6 %}
+                        {% set gauge_color = "red" %}
+                    {% elif results.net_runway_months < 12 %}
+                        {% set gauge_color = "yellow" %}
+                    {% else %}
+                        {% set gauge_color = "green" %}
+                    {% endif %}
+                {% endif %}
+
+                <div class="gauge-track">
+                    <div class="gauge-fill {{ gauge_color }}"
+                         style="width: {{ gauge_pct }}%;">
+                    </div>
+                </div>
+
+                <div class="gauge-markers">
+                    <span>0</span>
+                    <span class="danger">6 mo</span>
+                    <span class="caution">12 mo</span>
+                    <span class="safe">18 mo</span>
+                    <span class="safe">24+ mo</span>
+                </div>
+            </div>
+
+        </div><!-- /.card #results -->
+        {% endif %}
+
+    </div><!-- /.container -->
+
+    <footer>
+        Company Runway Calculator &middot; Built for financial planning &amp; scenario analysis
+    </footer>
+
+    <!-- Scroll to results after calculation -->
+    {% if results %}
+    <script>
+        document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    </script>
+    {% endif %}
+
+</body>
+</html>
