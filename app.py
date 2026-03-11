@@ -1,133 +1,125 @@
-"""
-Company Runway Calculator – Flask Application
+from datetime import timedelta
 
-Calculates gross and net runway (in months) based on liquid assets,
-revenue, and operating costs submitted through a single-page form.
-"""
-
-from datetime import datetime, timedelta
 from flask import Flask, render_template, request
 
+from netsuite_parser import parse_balance_sheet, parse_income_statement
+
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB max upload
+
+ALLOWED_EXTENSIONS = {"csv", "xlsx"}
 
 
-def _parse_float(value, default=0.0):
-    """Safely parse a form value to float, returning *default* on failure."""
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _parse_date(value):
-    """Parse an ISO-format date string (YYYY-MM-DD) or return None."""
-    try:
-        return datetime.strptime(value, "%Y-%m-%d").date()
-    except (TypeError, ValueError):
-        return None
-
-
-def calculate_runway(inputs):
-    """
-    Perform all runway calculations and return a results dict.
-
-    Parameters
-    ----------
-    inputs : dict
-        Parsed form values (floats + balance_sheet_date as a date object).
-
-    Returns
-    -------
-    dict  – keys: total_liquid_assets, gross_monthly_burn, net_monthly_burn,
-            cash_flow_positive, gross_runway_months, net_runway_months,
-            runway_end_date
-    """
-    total_liquid_assets = (
-        inputs["cash_and_equivalents"] + inputs["short_term_investments"]
-    )
-
-    gross_monthly_burn = (
-        inputs["monthly_cogs"]
-        + inputs["monthly_operating_expenses"]
-        + inputs["monthly_other_expenses"]
-    )
-
-    net_monthly_burn = gross_monthly_burn - inputs["monthly_revenue"]
-
-    # --- Derived metrics ---------------------------------------------------
-    cash_flow_positive = net_monthly_burn <= 0
-
-    gross_runway_months = (
-        round(total_liquid_assets / gross_monthly_burn, 1)
-        if gross_monthly_burn > 0
-        else None
-    )
-
-    net_runway_months = (
-        round(total_liquid_assets / net_monthly_burn, 1)
-        if net_monthly_burn > 0
-        else None
-    )
-
-    # Estimate the calendar date when cash runs out
-    # (use ~30.44 days/month for a reasonable approximation)
-    runway_end_date = None
-    if net_runway_months is not None and inputs["balance_sheet_date"] is not None:
-        delta_days = int(net_runway_months * 30.4375)
-        runway_end_date = inputs["balance_sheet_date"] + timedelta(days=delta_days)
-
-    return {
-        "total_liquid_assets": round(total_liquid_assets, 2),
-        "gross_monthly_burn": round(gross_monthly_burn, 2),
-        "net_monthly_burn": round(net_monthly_burn, 2),
-        "is_cash_flow_positive": cash_flow_positive,
-        "gross_runway_months": gross_runway_months,
-        "net_runway_months": net_runway_months,
-        "runway_end_date": runway_end_date,
-    }
+def _allowed_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    """Render the calculator form and, on POST, the results."""
-    inputs = {}
+    error = None
+    bs_data = None
+    inc_data = None
     results = None
 
     if request.method == "POST":
-        # ---- Collect & parse form data ------------------------------------
-        inputs = {
-            "balance_sheet_date": _parse_date(
-                request.form.get("balance_sheet_date")
-            ),
-            "cash_and_equivalents": _parse_float(
-                request.form.get("cash_and_equivalents")
-            ),
-            "short_term_investments": _parse_float(
-                request.form.get("short_term_investments")
-            ),
-            "accounts_receivable": _parse_float(
-                request.form.get("accounts_receivable")
-            ),
-            "monthly_revenue": _parse_float(
-                request.form.get("monthly_revenue")
-            ),
-            "monthly_cogs": _parse_float(
-                request.form.get("monthly_cogs")
-            ),
-            "monthly_operating_expenses": _parse_float(
-                request.form.get("monthly_operating_expenses")
-            ),
-            "monthly_other_expenses": _parse_float(
-                request.form.get("monthly_other_expenses"), default=0.0
-            ),
-        }
+        try:
+            # ----------------------------------------------------------
+            # 1. Accept the two file uploads
+            # ----------------------------------------------------------
+            bs_file = request.files.get("balance_sheet")
+            inc_file = request.files.get("income_statement")
 
-        # ---- Run calculations ---------------------------------------------
-        results = calculate_runway(inputs)
+            # ----------------------------------------------------------
+            # 2. Validate presence and allowed extensions
+            # ----------------------------------------------------------
+            if not bs_file or bs_file.filename == "":
+                raise ValueError("Balance Sheet file is required.")
+            if not inc_file or inc_file.filename == "":
+                raise ValueError("Income Statement file is required.")
 
-    # Build raw form_data from the request so the template can repopulate fields
-    form_data = {k: v for k, v in request.form.items()} if request.method == "POST" else None
-    return render_template("index.html", form_data=form_data, results=results, error=None)
+            if not _allowed_file(bs_file.filename):
+                raise ValueError(
+                    "Balance Sheet must be a .csv or .xlsx file."
+                )
+            if not _allowed_file(inc_file.filename):
+                raise ValueError(
+                    "Income Statement must be a .csv or .xlsx file."
+                )
+
+            # ----------------------------------------------------------
+            # 3. Parse uploaded files via netsuite_parser helpers
+            # ----------------------------------------------------------
+            bs_data = parse_balance_sheet(bs_file, bs_file.filename)
+            inc_data = parse_income_statement(inc_file, inc_file.filename)
+
+            # ----------------------------------------------------------
+            # 4. Build runway-calculation inputs from parsed data
+            # ----------------------------------------------------------
+            total_liquid_assets = bs_data["cash_and_equivalents"]
+            monthly_revenue = inc_data["monthly_revenue"]
+            monthly_cogs = inc_data["monthly_cogs"]
+            monthly_opex = inc_data["monthly_opex"]
+            monthly_other_expense = inc_data["monthly_other_expense"]
+            monthly_other_income = inc_data["monthly_other_income"]
+
+            # ----------------------------------------------------------
+            # 5. Calculate runway metrics
+            # ----------------------------------------------------------
+            gross_monthly_burn = monthly_cogs + monthly_opex + monthly_other_expense
+            net_monthly_burn = gross_monthly_burn - monthly_revenue - monthly_other_income
+
+            is_cash_flow_positive = net_monthly_burn <= 0
+            gross_runway_months = None
+            net_runway_months = None
+            runway_end_date = None
+
+            if gross_monthly_burn > 0:
+                gross_runway_months = total_liquid_assets / gross_monthly_burn
+
+            if not is_cash_flow_positive and net_monthly_burn > 0:
+                net_runway_months = total_liquid_assets / net_monthly_burn
+                runway_end_date = bs_data["balance_sheet_date"] + timedelta(
+                    days=net_runway_months * 30.4375
+                )
+
+            # ----------------------------------------------------------
+            # 6. Assemble results dict for the template
+            # ----------------------------------------------------------
+            results = {
+                "balance_sheet_date": bs_data["balance_sheet_date"],
+                "balance_sheet_date_str": bs_data["balance_sheet_date_str"],
+                "cash_and_equivalents": bs_data["cash_and_equivalents"],
+                "total_liquid_assets": total_liquid_assets,
+                "accounts_receivable": bs_data["accounts_receivable"],
+                "quarterly_revenue": inc_data["quarterly_revenue"],
+                "quarterly_cogs": inc_data["quarterly_cogs"],
+                "quarterly_opex": inc_data["quarterly_opex"],
+                "quarterly_other_expense": inc_data["quarterly_other_expense"],
+                "quarterly_other_income": inc_data["quarterly_other_income"],
+                "quarter_used": inc_data["quarter_used"],
+                "monthly_revenue": monthly_revenue,
+                "monthly_cogs": monthly_cogs,
+                "monthly_opex": monthly_opex,
+                "monthly_other_expense": monthly_other_expense,
+                "monthly_other_income": monthly_other_income,
+                "gross_monthly_burn": gross_monthly_burn,
+                "net_monthly_burn": net_monthly_burn,
+                "is_cash_flow_positive": is_cash_flow_positive,
+                "gross_runway_months": gross_runway_months,
+                "net_runway_months": net_runway_months,
+                "runway_end_date": runway_end_date,
+            }
+
+        except Exception as exc:
+            error = str(exc)
+
+    return render_template(
+        "index.html",
+        error=error,
+        bs_data=bs_data,
+        inc_data=inc_data,
+        results=results,
+    )
 
 
 if __name__ == "__main__":

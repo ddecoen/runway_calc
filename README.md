@@ -1,28 +1,38 @@
 # Company Runway Calculator
 
-A web application that calculates how long a company can sustain operations based on its current cash position and monthly burn rate as of a specific balance sheet date.
-
-Built with **Flask** and vanilla JavaScript, this tool helps founders, CFOs, and financial analysts quickly assess a company's financial runway with clear visual feedback.
+A web application that calculates how long a company can sustain operations based on its current cash position and monthly burn rate. Upload your **NetSuite Balance Sheet** and **Income Statement** exports directly — the app parses the reports and computes runway automatically.
 
 ---
 
-## Screenshot
+## How It Works
 
-> ![Company Runway Calculator](screenshot.png)
-> *Screenshot placeholder – replace with an actual capture of the running application.*
+1. **Export** a quarterly Balance Sheet and Income Statement from NetSuite as `.csv` or `.xlsx`
+2. **Upload** both files into the calculator
+3. **Review** extracted financials and runway analysis instantly
+
+The app extracts key line items from standard NetSuite report formats:
+
+| From Balance Sheet | From Income Statement (last quarter ÷ 3) |
+|---|---|
+| Cash & Cash Equivalents (`Total - 11000`) | Revenue (`Total - Income`) |
+| Accounts Receivable (`Total Accounts Receivable`) | COGS (`Total - Cost Of Sales`) |
+| | Operating Expenses (`Total - 60000`) |
+| | Other Income / Expense |
 
 ---
 
 ## Features
 
-- **Balance Sheet Date Input** — Specify the exact date of the financial snapshot for accurate, time-anchored projections.
-- **Burn Rate Calculation** — Enter monthly revenue and expenses to compute both gross and net burn rates automatically.
-- **Runway Projection** — Calculates the number of months of remaining runway and the estimated cash-out date.
-- **Visual Status Indicators** — Color-coded results provide at-a-glance health assessment:
-  - 🟢 **Green** (18+ months) — Healthy runway
-  - 🟡 **Yellow** (12–18 months) — Caution; begin planning
-  - 🟠 **Orange** (6–12 months) — Elevated risk; act soon
-  - 🔴 **Red** (< 6 months) — Critical; immediate action required
+- **NetSuite file upload** — Supports `.csv` and `.xlsx` exports directly from NetSuite
+- **Auto-parsing** — Extracts cash, revenue, COGS, operating expenses, and other income/expenses from standard NetSuite report formats
+- **Quarterly → Monthly** — Divides income statement figures by 3 for monthly burn rate
+- **Runway projection** — Gross runway (ignoring revenue) and net runway (after revenue offset)
+- **Visual indicators** — Color-coded results:
+  - 🟢 **Green** (12+ months) — Healthy runway
+  - 🟡 **Yellow** (6–12 months) — Caution
+  - 🔴 **Red** (< 6 months) — Critical
+- **Runway gauge** — Visual bar chart scaled to 24 months
+- **Extracted data review** — See exactly which values were pulled from your reports
 
 ---
 
@@ -30,30 +40,20 @@ Built with **Flask** and vanilla JavaScript, this tool helps founders, CFOs, and
 
 ### Prerequisites
 
-- Python 3.9 or higher
+- Python 3.9+
 
 ### Steps
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd runway_calc
-   ```
+```bash
+git clone https://github.com/ddecoen/runway_calc.git
+cd runway_calc
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python app.py
+```
 
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Run the application**
-   ```bash
-   python app.py
-   ```
-
-4. **Open in your browser**
-   ```
-   http://localhost:5000
-   ```
+Open http://localhost:5000 in your browser.
 
 ---
 
@@ -61,10 +61,10 @@ Built with **Flask** and vanilla JavaScript, this tool helps founders, CFOs, and
 
 | Term | Definition |
 |---|---|
-| **Liquid Assets** | Cash and cash-equivalent holdings that can be quickly converted to fund operations (e.g., bank balances, money-market funds). |
-| **Gross Burn Rate** | Total monthly operating expenses before accounting for any incoming revenue. |
-| **Net Burn Rate** | Monthly cash consumption after revenue is subtracted from expenses (*Expenses − Revenue*). This reflects the actual rate at which cash reserves are depleted. |
-| **Runway** | The estimated number of months a company can continue operating before its liquid assets are fully exhausted, calculated as *Liquid Assets ÷ Net Burn Rate*. |
+| **Liquid Assets** | Cash and cash equivalents that fund operations (bank balances, money-market funds, short-term investments). |
+| **Gross Burn Rate** | Total monthly cash outflows (COGS + OpEx + Other Expenses) before revenue. |
+| **Net Burn Rate** | Monthly cash consumption after revenue and other income: `Gross Burn − Revenue − Other Income`. |
+| **Runway** | Months of remaining operations: `Liquid Assets ÷ Net Burn Rate`. |
 
 ---
 
@@ -72,20 +72,33 @@ Built with **Flask** and vanilla JavaScript, this tool helps founders, CFOs, and
 
 ```
 runway_calc/
-├── app.py                 # Flask application entry point
+├── app.py                 # Flask application
+├── netsuite_parser.py     # NetSuite CSV/XLSX report parser
 ├── requirements.txt       # Python dependencies
-├── README.md              # Project documentation
+├── README.md
 ├── templates/
-│   └── index.html         # Main UI template
-└── static/
-    ├── css/
-    │   └── style.css      # Application styles
-    └── js/
-        └── main.js        # Client-side logic
+│   └── index.html         # UI template
+└── tests/
+    ├── test_balance_sheet.csv
+    └── test_income_statement.csv
 ```
+
+---
+
+## NetSuite Export Format
+
+### Balance Sheet
+- Column A: account labels (hierarchical with indentation)
+- Column B: amounts
+- Row 4: date line (e.g., "End of Dec 2025")
+
+### Income Statement
+- Column A: account labels
+- Columns B+: quarterly amounts (Q1 2025, Q2 2025, ...) + Total
+- The **last quarterly column** (before Total) is used automatically
 
 ---
 
 ## License
 
-This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
+MIT
