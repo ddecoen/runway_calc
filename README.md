@@ -55,6 +55,19 @@ python app.py
 
 Open http://localhost:5000 in your browser.
 
+### Updating to the Latest Version
+
+If you've already cloned the repo and want to pull the latest changes:
+
+```bash
+cd runway_calc
+git pull origin main
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+Then restart the app with `python app.py`.
+
 ---
 
 ## Key Financial Terms
