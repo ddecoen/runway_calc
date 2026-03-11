@@ -2,14 +2,17 @@ from datetime import timedelta
 from io import BytesIO
 import json
 
-from flask import Flask, render_template, request, send_file, session
+from flask import Flask, redirect, render_template, request, send_file, session, url_for
 
 from netsuite_parser import parse_balance_sheet, parse_income_statement, date_to_quarter_label
 from report_export import generate_excel, generate_pdf
+from db import init_db, save_report, get_all_reports, get_report, delete_report
 
 app = Flask(__name__)
 app.secret_key = "runway-calc-session-key"
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB max upload
+
+init_db()
 
 ALLOWED_EXTENSIONS = {"csv", "xlsx"}
 
@@ -145,8 +148,12 @@ def index():
             # Store results in session for download routes
             session["last_results"] = _serialize_results(results)
 
+            save_report(results)
+
         except Exception as exc:
             error = str(exc)
+
+    saved_reports = get_all_reports()
 
     return render_template(
         "index.html",
@@ -154,35 +161,74 @@ def index():
         bs_data=bs_data,
         inc_data=inc_data,
         results=results,
+        saved_reports=saved_reports,
     )
 
 
+@app.route("/report/<int:report_id>")
+def view_report(report_id):
+    results = get_report(report_id)
+    if not results:
+        return "Report not found.", 404
+    session["last_results"] = _serialize_results(results)
+    saved_reports = get_all_reports()
+    return render_template(
+        "index.html",
+        error=None,
+        bs_data=None,
+        inc_data=None,
+        results=results,
+        saved_reports=saved_reports,
+        viewing_saved=True,
+    )
+
+
+@app.route("/report/<int:report_id>/delete", methods=["POST"])
+def delete_report_route(report_id):
+    delete_report(report_id)
+    return redirect(url_for("index"))
+
+
 @app.route("/download/excel")
-def download_excel():
-    data = session.get("last_results")
-    if not data:
-        return "No report data available. Please run a calculation first.", 400
-    results = _deserialize_results(data)
+@app.route("/download/excel/<int:report_id>")
+def download_excel(report_id=None):
+    if report_id:
+        results = get_report(report_id)
+        if not results:
+            return "Report not found.", 404
+    else:
+        data = session.get("last_results")
+        if not data:
+            return "No report data available. Please run a calculation first.", 400
+        results = _deserialize_results(data)
     buf = generate_excel(results)
+    quarter = results.get("quarter_used", "report")
     return send_file(
         buf,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
-        download_name="runway_report.xlsx",
+        download_name=f"runway_{quarter.replace(' ', '_')}.xlsx",
     )
 
 @app.route("/download/pdf")
-def download_pdf():
-    data = session.get("last_results")
-    if not data:
-        return "No report data available. Please run a calculation first.", 400
-    results = _deserialize_results(data)
+@app.route("/download/pdf/<int:report_id>")
+def download_pdf(report_id=None):
+    if report_id:
+        results = get_report(report_id)
+        if not results:
+            return "Report not found.", 404
+    else:
+        data = session.get("last_results")
+        if not data:
+            return "No report data available. Please run a calculation first.", 400
+        results = _deserialize_results(data)
     buf = generate_pdf(results)
+    quarter = results.get("quarter_used", "report")
     return send_file(
         buf,
         mimetype="application/pdf",
         as_attachment=True,
-        download_name="runway_report.pdf",
+        download_name=f"runway_{quarter.replace(' ', '_')}.pdf",
     )
 
 

@@ -340,6 +340,101 @@
             box-shadow: 0 4px 14px rgba(46, 125, 50, 0.45);
         }
 
+        /* ---------- Saved Reports ---------- */
+        .saved-reports-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        .saved-reports-table th {
+            text-align: left;
+            padding: 0.6rem 0.75rem;
+            background: #f0f2f5;
+            color: #555;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .saved-reports-table td {
+            padding: 0.6rem 0.75rem;
+            border-bottom: 1px solid #f0f0f0;
+            color: #444;
+        }
+
+        .saved-reports-table tr:hover {
+            background: #f8f9ff;
+        }
+
+        .saved-reports-table .quarter-link {
+            color: #1a73e8;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .saved-reports-table .quarter-link:hover {
+            text-decoration: underline;
+        }
+
+        .saved-reports-table .mono {
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.85rem;
+        }
+
+        .btn-delete {
+            background: none;
+            border: 1px solid #e0e0e0;
+            color: #999;
+            padding: 0.25rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn-delete:hover {
+            background: #fff0f0;
+            border-color: #ef9a9a;
+            color: #c62828;
+        }
+
+        .btn-sm {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-decoration: none;
+            margin-right: 0.25rem;
+        }
+
+        .btn-sm-pdf {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .btn-sm-pdf:hover {
+            background: #ffcdd2;
+        }
+
+        .btn-sm-excel {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .btn-sm-excel:hover {
+            background: #c8e6c9;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: #999;
+            font-size: 0.92rem;
+        }
+
         /* ---------- Footer ---------- */
         footer {
             text-align: center;
@@ -408,7 +503,56 @@
             </form>
         </div>
 
+        <!-- Saved Reports -->
+        {% if saved_reports %}
+        <div class="card">
+            <h2>Saved Reports</h2>
+            <table class="saved-reports-table">
+                <thead>
+                    <tr>
+                        <th>Quarter</th>
+                        <th>Balance Sheet Date</th>
+                        <th>Net Runway</th>
+                        <th>Saved</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for report in saved_reports %}
+                    <tr>
+                        <td><a href="/report/{{ report.id }}" class="quarter-link">{{ report.quarter_label }}</a></td>
+                        <td>{{ report.balance_sheet_date }}</td>
+                        <td class="mono">
+                            {% if report.net_runway_months is not none %}
+                                {{ "%.1f"|format(report.net_runway_months) }} mo
+                            {% elif report.is_cash_flow_positive %}
+                                <span style="color:#2e7d32;">Unlimited</span>
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td style="font-size:0.82rem; color:#999;">{{ report.created_at }}</td>
+                        <td>
+                            <a href="/download/pdf/{{ report.id }}" class="btn-sm btn-sm-pdf">PDF</a>
+                            <a href="/download/excel/{{ report.id }}" class="btn-sm btn-sm-excel">Excel</a>
+                            <form method="POST" action="/report/{{ report.id }}/delete" style="display:inline;"
+                                  onsubmit="return confirm('Delete {{ report.quarter_label }} report?');">
+                                <button type="submit" class="btn-delete">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
         {% if results %}
+        {% if viewing_saved %}
+        <div style="background:#e3f2fd; border:1px solid #90caf9; border-left:4px solid #1a73e8; border-radius:8px; padding:0.8rem 1.25rem; margin-bottom:1.5rem; font-size:0.9rem; color:#1565c0;">
+            Viewing saved report for <strong>{{ results.quarter_used }}</strong>. <a href="/" style="color:#1a73e8;">Upload new reports</a> to run a new calculation.
+        </div>
+        {% endif %}
         <!-- Extracted Financial Data -->
         <div class="card">
             <h2>Extracted Financial Data</h2>
