@@ -156,6 +156,17 @@ def _parse_month_year(text):
     return datetime.date(year, month, last_day)
 
 
+def date_to_quarter_label(d):
+    """Convert a :class:`datetime.date` to a quarter label like ``'Q4 2025'``.
+
+    Returns *None* if *d* is None.
+    """
+    if d is None:
+        return None
+    q = (d.month - 1) // 3 + 1
+    return f"Q{q} {d.year}"
+
+
 def _safe_str(val):
     """Return a stripped string for *val*, or '' if None."""
     if val is None:
@@ -265,7 +276,7 @@ def parse_balance_sheet(file_obj, filename):
 # Income Statement parser
 # ---------------------------------------------------------------------------
 
-def parse_income_statement(file_obj, filename):
+def parse_income_statement(file_obj, filename, target_quarter=None):
     """Parse a NetSuite Income Statement export.
 
     Parameters
@@ -310,7 +321,17 @@ def parse_income_statement(file_obj, filename):
     # Headers look like: ["Financial Row", "Q1 2025", "Q2 2025", ..., "Total"]
     quarter_col = None
     quarter_label = ""
-    if headers:
+
+    # --- NEW: try to match the caller-requested quarter first ---
+    if target_quarter and headers:
+        tq = target_quarter.strip().lower()
+        for ci, h in enumerate(headers):
+            if h.strip().lower() == tq:
+                quarter_col = ci
+                quarter_label = headers[ci]
+                break
+
+    if quarter_col is None and headers:
         # Walk backwards from the last header to find the last Qn column.
         for ci in range(len(headers) - 1, 0, -1):
             h = headers[ci].lower()

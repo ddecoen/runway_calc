@@ -1,10 +1,14 @@
 from datetime import timedelta
+from io import BytesIO
+import json
 
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, send_file, session
 
-from netsuite_parser import parse_balance_sheet, parse_income_statement
+from netsuite_parser import parse_balance_sheet, parse_income_statement, date_to_quarter_label
+from report_export import generate_excel, generate_pdf
 
 app = Flask(__name__)
+app.secret_key = "runway-calc-session-key"
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB max upload
 
 ALLOWED_EXTENSIONS = {"csv", "xlsx"}
@@ -12,6 +16,30 @@ ALLOWED_EXTENSIONS = {"csv", "xlsx"}
 
 def _allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def _serialize_results(results):
+    """Convert results dict to JSON-serializable form for session storage."""
+    import datetime
+    data = {}
+    for k, v in results.items():
+        if isinstance(v, (datetime.date, datetime.datetime)):
+            data[k] = v.isoformat()
+        else:
+            data[k] = v
+    return data
+
+def _deserialize_results(data):
+    """Restore date objects from session-stored results."""
+    import datetime
+    results = dict(data)
+    for key in ("balance_sheet_date", "runway_end_date"):
+        if results.get(key) and isinstance(results[key], str):
+            try:
+                results[key] = datetime.date.fromisoformat(results[key])
+            except (ValueError, TypeError):
+                pass
+    return results
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -50,7 +78,11 @@ def index():
             # 3. Parse uploaded files via netsuite_parser helpers
             # ----------------------------------------------------------
             bs_data = parse_balance_sheet(bs_file, bs_file.filename)
-            inc_data = parse_income_statement(inc_file, inc_file.filename)
+
+            # Derive target quarter from balance sheet date
+            target_quarter = date_to_quarter_label(bs_data["balance_sheet_date"])
+
+            inc_data = parse_income_statement(inc_file, inc_file.filename, target_quarter=target_quarter)
 
             # ----------------------------------------------------------
             # 4. Build runway-calculation inputs from parsed data
@@ -110,6 +142,9 @@ def index():
                 "runway_end_date": runway_end_date,
             }
 
+            # Store results in session for download routes
+            session["last_results"] = _serialize_results(results)
+
         except Exception as exc:
             error = str(exc)
 
@@ -119,6 +154,35 @@ def index():
         bs_data=bs_data,
         inc_data=inc_data,
         results=results,
+    )
+
+
+@app.route("/download/excel")
+def download_excel():
+    data = session.get("last_results")
+    if not data:
+        return "No report data available. Please run a calculation first.", 400
+    results = _deserialize_results(data)
+    buf = generate_excel(results)
+    return send_file(
+        buf,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="runway_report.xlsx",
+    )
+
+@app.route("/download/pdf")
+def download_pdf():
+    data = session.get("last_results")
+    if not data:
+        return "No report data available. Please run a calculation first.", 400
+    results = _deserialize_results(data)
+    buf = generate_pdf(results)
+    return send_file(
+        buf,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name="runway_report.pdf",
     )
 
 

@@ -304,6 +304,42 @@
             background: rgba(0, 0, 0, 0.15);
         }
 
+        /* ---------- Download Buttons ---------- */
+        .btn-download {
+            display: inline-block;
+            padding: 0.75rem 2rem;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: transform 0.15s, box-shadow 0.15s;
+            cursor: pointer;
+        }
+
+        .btn-download:hover {
+            transform: translateY(-1px);
+        }
+
+        .btn-pdf {
+            background: linear-gradient(135deg, #c62828, #e53935);
+            color: white;
+            box-shadow: 0 2px 8px rgba(198, 40, 40, 0.3);
+        }
+
+        .btn-pdf:hover {
+            box-shadow: 0 4px 14px rgba(198, 40, 40, 0.45);
+        }
+
+        .btn-excel {
+            background: linear-gradient(135deg, #2e7d32, #43a047);
+            color: white;
+            box-shadow: 0 2px 8px rgba(46, 125, 50, 0.3);
+        }
+
+        .btn-excel:hover {
+            box-shadow: 0 4px 14px rgba(46, 125, 50, 0.45);
+        }
+
         /* ---------- Footer ---------- */
         footer {
             text-align: center;
@@ -569,6 +605,16 @@
                 </div>
             </div>
             {% endif %}
+        </div>
+
+        <!-- Download Buttons -->
+        <div class="card" style="text-align:center;">
+            <h2>Download Report</h2>
+            <p style="color:#666; margin-bottom:1.25rem; font-size:0.92rem;">Save the runway analysis for sharing or archival</p>
+            <div style="display:flex; gap:1rem; justify-content:center; flex-wrap:wrap;">
+                <a href="/download/pdf" class="btn-download btn-pdf">Download PDF</a>
+                <a href="/download/excel" class="btn-download btn-excel">Download Excel</a>
+            </div>
         </div>
         {% endif %}
 
