@@ -155,6 +155,75 @@ def generate_excel(results):
     end_date = results.get("runway_end_date")
     _write_label_value(30, "Projected Cash-Out Date", end_date if end_date else "N/A")
 
+    # ---- Adjustments (if present) ----------------------------------------
+    current_row = 30  # last written row
+
+    adjustments = results.get("adjustments") or []
+    adjusted = results.get("adjusted")
+
+    if adjustments:
+        current_row += 2  # skip a blank row
+        ws.cell(row=current_row, column=1,
+                value="One-Off Adjustments").font = section_font
+        current_row += 1
+
+        for adj in adjustments:
+            adj_type = adj.get("type", "").replace("_", " ").title()
+            cat_or_desc = adj.get("description") or adj.get("category", "")
+            amount = adj.get("amount", 0)
+            _write_label_value(current_row, f"{adj_type} – {cat_or_desc}",
+                               amount, fmt=acct_fmt)
+            current_row += 1
+
+        current_row += 1  # blank row after adjustment list
+
+    if adjusted:
+        ws.cell(row=current_row, column=1,
+                value="Adjusted Runway Analysis").font = section_font
+        current_row += 1
+
+        # Gross Monthly Burn
+        _write_label_value(current_row, "Gross Monthly Burn",
+                           adjusted.get("gross_monthly_burn", 0), fmt=acct_fmt)
+        current_row += 1
+
+        # Net Monthly Burn
+        adj_positive = adjusted.get("is_cash_flow_positive", False)
+        if adj_positive:
+            _write_label_value(current_row, "Net Monthly Burn",
+                               "Cash Flow Positive")
+        else:
+            _write_label_value(current_row, "Net Monthly Burn",
+                               adjusted.get("net_monthly_burn", 0), fmt=acct_fmt)
+        current_row += 1
+
+        # Gross Runway (months)
+        adj_gross_rw = adjusted.get("gross_runway_months")
+        _write_label_value(current_row, "Gross Runway (months)",
+                           round(adj_gross_rw, 1) if adj_gross_rw is not None else "N/A")
+        current_row += 1
+
+        # Net Runway (months)
+        adj_net_rw = adjusted.get("net_runway_months")
+        if adj_positive:
+            adj_net_display = "Unlimited"
+        elif adj_net_rw is None:
+            adj_net_display = "N/A"
+        else:
+            adj_net_display = round(adj_net_rw, 1)
+        _write_label_value(current_row, "Net Runway (months)", adj_net_display)
+        current_row += 1
+
+        # Projected Cash-Out Date
+        adj_end = adjusted.get("runway_end_date")
+        if isinstance(adj_end, (date, datetime)):
+            adj_end_str = adj_end.strftime("%Y-%m-%d")
+        elif adj_end:
+            adj_end_str = str(adj_end)
+        else:
+            adj_end_str = "N/A"
+        _write_label_value(current_row, "Projected Cash-Out Date", adj_end_str)
+
     # ---- Write to BytesIO ------------------------------------------------
     buf = BytesIO()
     wb.save(buf)
@@ -192,6 +261,7 @@ def generate_pdf(results):
     grey = (100, 100, 100)
     white = (255, 255, 255)
     row_alt = (245, 245, 250)  # light background for alternating rows
+    orange = (230, 126, 34)    # adjustment section accent
 
     page_w = pdf.w - 30       # usable width (Letter=215.9 minus 2×15 margins)
     col_a = page_w * 0.55
@@ -220,10 +290,10 @@ def generate_pdf(results):
     # ------------------------------------------------------------------
     # Helpers local to PDF generation
     # ------------------------------------------------------------------
-    def _section_header(title):
+    def _section_header(title, color=None):
         pdf.ln(4)
         pdf.set_font("Helvetica", "B", 12)
-        pdf.set_text_color(*navy)
+        pdf.set_text_color(*(color or navy))
         pdf.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
         pdf.ln(1)
 
@@ -364,6 +434,84 @@ def generate_pdf(results):
         # colour-code date using net runway months for consistency
         _, d_color = _runway_color(net_months)
         _table_row("Projected Cash-Out Date", str(end_date), text_color=d_color)
+
+    # ------------------------------------------------------------------
+    # Section 4 – One-Off Adjustments (if present)
+    # ------------------------------------------------------------------
+    adjustments = results.get("adjustments") or []
+    adjusted = results.get("adjusted")
+
+    if adjustments:
+        _section_header("One-Off Adjustments", color=orange)
+        _reset_rows()
+
+        adj_type_w = page_w * 0.22
+        adj_desc_w = page_w * 0.48
+        adj_amt_w = page_w * 0.30
+
+        for adj in adjustments:
+            adj_type = adj.get("type", "").replace("_", " ").title()
+            cat_or_desc = adj.get("description") or adj.get("category", "")
+            amount = adj.get("amount", 0)
+
+            if row_idx[0] % 2 == 0:
+                pdf.set_fill_color(*row_alt)
+            else:
+                pdf.set_fill_color(*white)
+
+            pdf.set_font("Helvetica", "", 10)
+            pdf.set_text_color(*black)
+            pdf.cell(adj_type_w, 7, f"  {adj_type}", fill=True)
+            pdf.cell(adj_desc_w, 7, cat_or_desc, fill=True)
+            pdf.cell(adj_amt_w, 7, _fmt_currency(amount), align="R",
+                     fill=True, new_x="LMARGIN", new_y="NEXT")
+            row_idx[0] += 1
+
+    # ------------------------------------------------------------------
+    # Section 5 – Adjusted Runway Analysis (if present)
+    # ------------------------------------------------------------------
+    if adjusted:
+        _section_header("Adjusted Runway Analysis")
+        _reset_rows()
+
+        adj_positive = adjusted.get("is_cash_flow_positive", False)
+
+        _table_row("Gross Monthly Burn",
+                   _fmt_currency(adjusted.get("gross_monthly_burn", 0)))
+
+        if adj_positive:
+            _table_row("Net Monthly Burn", "Cash Flow Positive",
+                       text_color=(0, 153, 51))
+        else:
+            _table_row("Net Monthly Burn",
+                       _fmt_currency(adjusted.get("net_monthly_burn", 0)))
+
+        # Adjusted gross runway
+        adj_gross = adjusted.get("gross_runway_months")
+        ag_display, ag_color = _runway_color(adj_gross)
+        _table_row("Gross Runway (months)", ag_display, text_color=ag_color)
+
+        # Adjusted net runway
+        adj_net = adjusted.get("net_runway_months")
+        if adj_positive:
+            _table_row("Net Runway (months)", "Unlimited",
+                       text_color=(0, 153, 51))
+        else:
+            an_display, an_color = _runway_color(adj_net)
+            _table_row("Net Runway (months)", an_display, text_color=an_color)
+
+        # Adjusted cash-out date
+        adj_end = adjusted.get("runway_end_date")
+        if adj_positive or not adj_end:
+            _table_row("Projected Cash-Out Date", "N/A")
+        else:
+            if isinstance(adj_end, (date, datetime)):
+                adj_end_str = adj_end.strftime("%Y-%m-%d")
+            else:
+                adj_end_str = str(adj_end)
+            _, ad_color = _runway_color(adj_net)
+            _table_row("Projected Cash-Out Date", adj_end_str,
+                       text_color=ad_color)
 
     # ------------------------------------------------------------------
     # Write to BytesIO

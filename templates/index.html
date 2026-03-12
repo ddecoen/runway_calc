@@ -1,3 +1,109 @@
+{%- macro render_metrics(r, bs_date=None, single_col=false) -%}
+<div class="results-grid"{% if single_col %} style="grid-template-columns: 1fr;"{% endif %}>
+    {% if bs_date %}
+    <!-- Balance Sheet Date -->
+    <div class="result-card color-neutral">
+        <div class="result-label">Balance Sheet Date</div>
+        <div class="result-value" style="font-size:1.1rem;">{{ bs_date }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Total Liquid Assets -->
+    <div class="result-card color-neutral">
+        <div class="result-label">Total Liquid Assets</div>
+        <div class="result-value">${{ "{:,.0f}".format(r.total_liquid_assets) }}</div>
+    </div>
+
+    <!-- Gross Monthly Burn -->
+    <div class="result-card color-neutral">
+        <div class="result-label">Gross Monthly Burn</div>
+        <div class="result-value">${{ "{:,.0f}".format(r.gross_monthly_burn) }}</div>
+        <div class="result-sub">COGS + OpEx + Other Expenses</div>
+    </div>
+
+    <!-- Net Monthly Burn -->
+    {% if r.is_cash_flow_positive %}
+    <div class="result-card color-green">
+        <div class="result-label">Net Monthly Burn</div>
+        <div class="result-value" style="font-size:1.1rem;">Cash Flow Positive</div>
+    </div>
+    {% else %}
+    <div class="result-card color-red">
+        <div class="result-label">Net Monthly Burn</div>
+        <div class="result-value">${{ "{:,.0f}".format(r.net_monthly_burn) }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Gross Runway -->
+    {% if r.gross_runway_months is not none %}
+        {% if r.gross_runway_months < 6 %}
+    <div class="result-card color-red">
+        {% elif r.gross_runway_months < 12 %}
+    <div class="result-card color-yellow">
+        {% else %}
+    <div class="result-card color-green">
+        {% endif %}
+        <div class="result-label">Gross Runway</div>
+        <div class="result-value">{{ "%.1f"|format(r.gross_runway_months) }} mo</div>
+        <div class="result-sub">Ignoring revenue</div>
+    </div>
+    {% else %}
+    <div class="result-card color-neutral">
+        <div class="result-label">Gross Runway</div>
+        <div class="result-value">N/A</div>
+        <div class="result-sub">Ignoring revenue</div>
+    </div>
+    {% endif %}
+
+    <!-- Net Runway -->
+    {% if r.is_cash_flow_positive %}
+    <div class="result-card color-green">
+        <div class="result-label">Net Runway</div>
+        <div class="result-value" style="font-size:1.1rem;">Unlimited</div>
+    </div>
+    {% elif r.net_runway_months is not none %}
+        {% if r.net_runway_months < 6 %}
+    <div class="result-card color-red">
+        {% elif r.net_runway_months < 12 %}
+    <div class="result-card color-yellow">
+        {% else %}
+    <div class="result-card color-green">
+        {% endif %}
+        <div class="result-label">Net Runway</div>
+        <div class="result-value">{{ "%.1f"|format(r.net_runway_months) }} mo</div>
+    </div>
+    {% else %}
+    <div class="result-card color-neutral">
+        <div class="result-label">Net Runway</div>
+        <div class="result-value">N/A</div>
+    </div>
+    {% endif %}
+
+    <!-- Projected Cash-Out Date -->
+    {% if r.is_cash_flow_positive %}
+    <div class="result-card color-green">
+        <div class="result-label">Projected Cash-Out Date</div>
+        <div class="result-value" style="font-size:1.1rem;">N/A</div>
+    </div>
+    {% elif r.net_runway_months is not none %}
+        {% if r.net_runway_months < 6 %}
+    <div class="result-card color-red">
+        {% elif r.net_runway_months < 12 %}
+    <div class="result-card color-yellow">
+        {% else %}
+    <div class="result-card color-green">
+        {% endif %}
+        <div class="result-label">Projected Cash-Out Date</div>
+        <div class="result-value" style="font-size:1.1rem;">{{ r.runway_end_date }}</div>
+    </div>
+    {% else %}
+    <div class="result-card color-neutral">
+        <div class="result-label">Projected Cash-Out Date</div>
+        <div class="result-value">N/A</div>
+    </div>
+    {% endif %}
+</div>
+{%- endmacro -%}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -443,6 +549,48 @@
             font-size: 0.85rem;
         }
 
+        /* ---------- Adjustments ---------- */
+        .adj-section { margin-bottom: 1.5rem; }
+        .adj-section h3 {
+            font-size: 0.95rem; color: #1a1a2e; margin-bottom: 0.75rem;
+            padding-bottom: 0.4rem; border-bottom: 1px solid #e8e8e8;
+        }
+        .adj-row {
+            display: grid; grid-template-columns: 1fr 1.5fr 140px 36px;
+            gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;
+        }
+        .adj-row select, .adj-row input {
+            padding: 0.5rem 0.6rem; border: 1px solid #ccc; border-radius: 6px;
+            font-size: 0.88rem;
+        }
+        .adj-row input[type="number"] { text-align: right; }
+        .adj-row .btn-remove {
+            background: none; border: 1px solid #e0e0e0; color: #999;
+            border-radius: 6px; cursor: pointer; font-size: 1.1rem; padding: 0.35rem;
+            transition: all 0.15s;
+        }
+        .adj-row .btn-remove:hover { background: #fff0f0; border-color: #ef9a9a; color: #c62828; }
+        .btn-add-row {
+            background: none; border: 1px dashed #bbb; color: #777;
+            padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer;
+            font-size: 0.85rem; margin-top: 0.25rem; transition: all 0.15s;
+        }
+        .btn-add-row:hover { border-color: #3f51b5; color: #3f51b5; }
+        .adj-summary {
+            background: #fff8e1; border: 1px solid #ffe082; border-left: 4px solid #f9a825;
+            border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 2rem; font-size: 0.9rem;
+        }
+        .adj-summary strong { color: #e65100; }
+        .adj-summary ul { margin: 0.5rem 0 0 1.5rem; }
+        .comparison-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;
+        }
+        .comparison-col h3 {
+            font-size: 1rem; color: #1a1a2e; margin-bottom: 1rem;
+            padding-bottom: 0.5rem; border-bottom: 2px solid #e8e8e8; text-align: center;
+        }
+        .comparison-col.adjusted h3 { border-bottom-color: #f9a825; }
+
         /* ---------- Responsive ---------- */
         @media (max-width: 700px) {
             header h1 {
@@ -462,6 +610,9 @@
             .card {
                 padding: 1.25rem;
             }
+
+            .adj-row { grid-template-columns: 1fr; }
+            .comparison-grid { grid-template-columns: 1fr; }
         }
 
         @media (max-width: 480px) {
@@ -607,111 +758,70 @@
             </div>
         </div>
 
+        <!-- One-Off Adjustments -->
+        <div class="card">
+            <h2>One-Off Adjustments</h2>
+            <p style="color:#666; margin-bottom:1.25rem; font-size:0.88rem;">
+                Remove one-time items to normalize the runway calculation. Amounts are subtracted from the corresponding values.
+            </p>
+            <form method="POST" action="/adjust">
+                <!-- Balance Sheet Adjustments (reduce cash) -->
+                <div class="adj-section">
+                    <h3>Balance Sheet Adjustments <span style="font-weight:400; color:#999; font-size:0.82rem;">(reduce liquid assets)</span></h3>
+                    <div id="bs-rows"></div>
+                    <button type="button" class="btn-add-row" onclick="addRow('bs','balance_sheet')">+ Add Balance Sheet Adjustment</button>
+                </div>
+
+                <!-- Revenue Adjustments (reduce revenue) -->
+                <div class="adj-section">
+                    <h3>Revenue Adjustments <span style="font-weight:400; color:#999; font-size:0.82rem;">(reduce quarterly revenue)</span></h3>
+                    <div id="rev-rows"></div>
+                    <button type="button" class="btn-add-row" onclick="addRow('rev','revenue')">+ Add Revenue Adjustment</button>
+                </div>
+
+                <!-- Expense Adjustments (reduce expenses) -->
+                <div class="adj-section">
+                    <h3>Expense Adjustments <span style="font-weight:400; color:#999; font-size:0.82rem;">(reduce quarterly expenses)</span></h3>
+                    <div id="exp-rows"></div>
+                    <button type="button" class="btn-add-row" onclick="addRow('exp','expense')">+ Add Expense Adjustment</button>
+                </div>
+
+                <button type="submit" class="btn-calculate" style="background:linear-gradient(135deg,#e65100,#f9a825);">
+                    Recalculate with Adjustments
+                </button>
+            </form>
+        </div>
+
+        {% if results.adjustments %}
+        <div class="adj-summary">
+            <strong>Adjustments Applied:</strong>
+            <ul>
+                {% for adj in results.adjustments %}
+                <li>{{ adj.description or adj.category }}: ${{ "{:,.2f}".format(adj.amount) }} ({{ adj.type | replace('_', ' ') | title }})</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
         <!-- Runway Analysis -->
         <div class="card">
             <h2>Runway Analysis</h2>
-            <div class="results-grid">
-                <!-- Balance Sheet Date -->
-                <div class="result-card color-neutral">
-                    <div class="result-label">Balance Sheet Date</div>
-                    <div class="result-value" style="font-size:1.1rem;">{{ results.balance_sheet_date }}</div>
-                </div>
 
-                <!-- Total Liquid Assets -->
-                <div class="result-card color-neutral">
-                    <div class="result-label">Total Liquid Assets</div>
-                    <div class="result-value">${{ "{:,.0f}".format(results.total_liquid_assets) }}</div>
+            {% if results.adjusted %}
+            <!-- Two-column comparison: Unadjusted vs Adjusted -->
+            <div class="comparison-grid">
+                <div class="comparison-col">
+                    <h3>Unadjusted</h3>
+                    {{ render_metrics(results, bs_date=results.balance_sheet_date, single_col=true) }}
                 </div>
-
-                <!-- Gross Monthly Burn -->
-                <div class="result-card color-neutral">
-                    <div class="result-label">Gross Monthly Burn</div>
-                    <div class="result-value">${{ "{:,.0f}".format(results.gross_monthly_burn) }}</div>
-                    <div class="result-sub">COGS + OpEx + Other Expenses</div>
+                <div class="comparison-col adjusted">
+                    <h3>Adjusted</h3>
+                    {{ render_metrics(results.adjusted, bs_date=results.balance_sheet_date, single_col=true) }}
                 </div>
-
-                <!-- Net Monthly Burn -->
-                {% if results.is_cash_flow_positive %}
-                <div class="result-card color-green">
-                    <div class="result-label">Net Monthly Burn</div>
-                    <div class="result-value" style="font-size:1.1rem;">Cash Flow Positive</div>
-                </div>
-                {% else %}
-                <div class="result-card color-red">
-                    <div class="result-label">Net Monthly Burn</div>
-                    <div class="result-value">${{ "{:,.0f}".format(results.net_monthly_burn) }}</div>
-                </div>
-                {% endif %}
-
-                <!-- Gross Runway -->
-                {% if results.gross_runway_months is not none %}
-                    {% if results.gross_runway_months < 6 %}
-                <div class="result-card color-red">
-                    {% elif results.gross_runway_months < 12 %}
-                <div class="result-card color-yellow">
-                    {% else %}
-                <div class="result-card color-green">
-                    {% endif %}
-                    <div class="result-label">Gross Runway</div>
-                    <div class="result-value">{{ "%.1f"|format(results.gross_runway_months) }} mo</div>
-                    <div class="result-sub">Ignoring revenue</div>
-                </div>
-                {% else %}
-                <div class="result-card color-neutral">
-                    <div class="result-label">Gross Runway</div>
-                    <div class="result-value">N/A</div>
-                    <div class="result-sub">Ignoring revenue</div>
-                </div>
-                {% endif %}
-
-                <!-- Net Runway -->
-                {% if results.is_cash_flow_positive %}
-                <div class="result-card color-green">
-                    <div class="result-label">Net Runway</div>
-                    <div class="result-value" style="font-size:1.1rem;">Unlimited</div>
-                </div>
-                {% elif results.net_runway_months is not none %}
-                    {% if results.net_runway_months < 6 %}
-                <div class="result-card color-red">
-                    {% elif results.net_runway_months < 12 %}
-                <div class="result-card color-yellow">
-                    {% else %}
-                <div class="result-card color-green">
-                    {% endif %}
-                    <div class="result-label">Net Runway</div>
-                    <div class="result-value">{{ "%.1f"|format(results.net_runway_months) }} mo</div>
-                </div>
-                {% else %}
-                <div class="result-card color-neutral">
-                    <div class="result-label">Net Runway</div>
-                    <div class="result-value">N/A</div>
-                </div>
-                {% endif %}
-
-                <!-- Projected Cash-Out Date -->
-                {% if results.is_cash_flow_positive %}
-                <div class="result-card color-green">
-                    <div class="result-label">Projected Cash-Out Date</div>
-                    <div class="result-value" style="font-size:1.1rem;">N/A</div>
-                </div>
-                {% elif results.net_runway_months is not none %}
-                    {% if results.net_runway_months < 6 %}
-                <div class="result-card color-red">
-                    {% elif results.net_runway_months < 12 %}
-                <div class="result-card color-yellow">
-                    {% else %}
-                <div class="result-card color-green">
-                    {% endif %}
-                    <div class="result-label">Projected Cash-Out Date</div>
-                    <div class="result-value" style="font-size:1.1rem;">{{ results.runway_end_date }}</div>
-                </div>
-                {% else %}
-                <div class="result-card color-neutral">
-                    <div class="result-label">Projected Cash-Out Date</div>
-                    <div class="result-value">N/A</div>
-                </div>
-                {% endif %}
             </div>
+            {% else %}
+            <!-- Single view (no adjustments) -->
+            {{ render_metrics(results, bs_date=results.balance_sheet_date) }}
 
             <!-- Runway Gauge Bar -->
             {% if results.net_runway_months is not none or results.is_cash_flow_positive %}
@@ -749,6 +859,7 @@
                 </div>
             </div>
             {% endif %}
+            {% endif %}
         </div>
 
         <!-- Download Buttons -->
@@ -767,5 +878,49 @@
     <footer>
         <p>Company Runway Calculator &middot; Powered by NetSuite Data</p>
     </footer>
+
+<script>
+const CATS = {{ adjustment_categories | default({}) | tojson }};
+let counters = {bs: 0, rev: 0, exp: 0};
+
+function addRow(prefix, type) {
+    const container = document.getElementById(prefix + '-rows');
+    const idx = counters[prefix]++;
+    const cats = CATS[type] || [];
+
+    const div = document.createElement('div');
+    div.className = 'adj-row';
+
+    let opts = cats.map(c => `<option value="${c[0]}">${c[1]}</option>`).join('');
+
+    div.innerHTML = `
+        <select name="${prefix}_cat_${idx}">${opts}</select>
+        <input type="text" name="${prefix}_desc_${idx}" placeholder="Description (optional)">
+        <input type="number" name="${prefix}_amt_${idx}" step="0.01" min="0" placeholder="Amount">
+        <button type="button" class="btn-remove" onclick="this.parentElement.remove()">&times;</button>
+    `;
+    container.appendChild(div);
+}
+
+{% if results and results.adjustments %}
+(function() {
+    var adjs = {{ results.adjustments | tojson }};
+    adjs.forEach(function(a) {
+        var prefix;
+        if (a.type === 'balance_sheet') prefix = 'bs';
+        else if (a.type === 'revenue') prefix = 'rev';
+        else prefix = 'exp';
+        addRow(prefix, a.type);
+        var idx = counters[prefix] - 1;
+        var catSel = document.querySelector('[name="' + prefix + '_cat_' + idx + '"]');
+        var descInp = document.querySelector('[name="' + prefix + '_desc_' + idx + '"]');
+        var amtInp = document.querySelector('[name="' + prefix + '_amt_' + idx + '"]');
+        if (catSel) catSel.value = a.category;
+        if (descInp) descInp.value = a.description || '';
+        if (amtInp) amtInp.value = a.amount;
+    });
+})();
+{% endif %}
+</script>
 </body>
 </html>
